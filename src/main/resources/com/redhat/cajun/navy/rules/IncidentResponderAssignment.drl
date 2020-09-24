@@ -26,17 +26,19 @@ declare BoatCapacityPredicate
 end
 
 rule "Add responders"
-	salience 200
-	when
-		$responders : Responders()
-	then
-		for (Responder r : $responders.getResponders()) {
-			insert(r);
-		}
+    salience 200
+    ruleflow-group "IncidentResponderAssignment"
+    when
+    $responders : Responders()
+    then
+    for (Responder r : $responders.getResponders()) {
+        insert(r);
+    }
 end
 
 rule "Add destinations"
     salience 200
+    ruleflow-group "IncidentResponderAssignment"
     when
         $destinations : Destinations()
     then
@@ -47,6 +49,7 @@ rule "Add destinations"
 end
 
 rule "Create a AssignmentPredicate when there is no IncidentPriority for the Incident"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident()
         not IncidentPriority ( incidentId == $incident.id )
@@ -57,6 +60,7 @@ rule "Create a AssignmentPredicate when there is no IncidentPriority for the Inc
 end
 
 rule "Create a AssignmentPredicate when there is a IncidentPriority for the Incident with higher than average priority"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident()
         IncidentPriority ( incidentId == $incident.id, priority.compareTo(averagePriority) >= 0 )
@@ -67,6 +71,7 @@ rule "Create a AssignmentPredicate when there is a IncidentPriority for the Inci
 end
 
 rule "Create a AssignmentPredicate when there is a IncidentPriority for the Incident with lower than average priority and sufficient responders"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident()
         $responders: Responders()
@@ -78,6 +83,7 @@ rule "Create a AssignmentPredicate when there is a IncidentPriority for the Inci
 end
 
 rule "Create a AssignmentPredicate when there is a IncidentPriority for the Incident with lower than average priority but high priority, as long as this incident isn't deferred by a priority zone"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident()
         $responders: Responders()
@@ -89,6 +95,7 @@ rule "Create a AssignmentPredicate when there is a IncidentPriority for the Inci
 end
 
 rule "Create a AssignmentPredicate when there is a IncidentPriority for the Incident with lower than average priority but very high priority, as long as this incident isn't deferred by a priority zone"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident()
         $responders: Responders()
@@ -100,6 +107,7 @@ rule "Create a AssignmentPredicate when there is a IncidentPriority for the Inci
 end
 
 rule "Create a BoatCapacityPredicate when there is a Responder with boat capacity equal or greater than the incident number of people"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident()
         $responder : Responder ( boatCapacity >= $incident.numPeople )
@@ -111,6 +119,7 @@ rule "Create a BoatCapacityPredicate when there is a Responder with boat capacit
 end
 
 rule "Create the Mission Assignments when there is a Assignment Predicate for the incident and a BoatCapacityPredicate for the Responder"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident()
         $responder : Responder()
@@ -118,43 +127,46 @@ rule "Create the Mission Assignments when there is a Assignment Predicate for th
         BoatCapacityPredicate( incident == $incident.id, responder == $responder.id)
         not MissionAssignment( responder == $responder, incident == $incident )
     then
-    	if ( $incident.getLatitude() == null || $incident.getLongitude() == null || 
-    	     $responder.getLatitude() == null || $responder.getLongitude() == null ) {
-        	insert( new MissionAssignment( $incident, $responder ) );
+        if ( $incident.getLatitude() == null || $incident.getLongitude() == null || 
+             $responder.getLatitude() == null || $responder.getLongitude() == null ) {
+            insert( new MissionAssignment( $incident, $responder ) );
         }
         else {
-        	double distance = DistanceHelper.calculateDistance( $incident.getLatitude(),
-        	                                                    $responder.getLatitude(),
-        	                                                    $incident.getLongitude(),
-        	                                                    $responder.getLongitude());
-        	insert( new MissionAssignment( $incident, $responder, distance ) );
+            double distance = DistanceHelper.calculateDistance( $incident.getLatitude(),
+                                                                $responder.getLatitude(),
+                                                                $incident.getLongitude(),
+                                                                $responder.getLongitude());
+            insert( new MissionAssignment( $incident, $responder, distance ) );
         }
 end
 
 rule "Responder Drop Off Locations"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $mission : Mission( destinationLat == null, destinationLong == null, status == Status.ASSIGNED )
         $destination : Destination( distance == null )
     then
-       	double distance = DistanceHelper.calculateDistance( $destination.getLatitude(),
-            $mission.getIncidentLat(), $destination.getLongitude(), $mission.getIncidentLong());
+        double distance = DistanceHelper.calculateDistance( $destination.getLatitude(),
+        $mission.getIncidentLat(), $destination.getLongitude(), $mission.getIncidentLong());
         modify($destination){
             setDistance(distance)
         }
 end
 
 rule "Set Responder Destination"
+    ruleflow-group "IncidentResponderAssignment"
     when
-	    $mission : Mission( destinationLat == null, destinationLong == null, status == Status.ASSIGNED )
-	    $destination : Destination($distance : distance)
-	    not Destination($distance > distance, this != $destination)
+        $mission : Mission( destinationLat == null, destinationLong == null, status == Status.ASSIGNED )
+        $destination : Destination($distance : distance)
+        not Destination($distance > distance, this != $destination)
     then
-	    $mission.setDestinationLat($destination.getLatitude());
-	    $mission.setDestinationLong($destination.getLongitude());
-	    modify($mission){}
+        $mission.setDestinationLat($destination.getLatitude());
+        $mission.setDestinationLong($destination.getLongitude());
+        modify($mission){}
 end
 
 rule "The Responder can provide medical assistance"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident( medicalNeeded == true )
         $responder : Responder( hasMedical == true )
@@ -166,100 +178,111 @@ rule "The Responder can provide medical assistance"
 end
 
 rule "The difference between the boat capacity and the incident number of people is less than or equal to 4"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident( $numberOfPeople : numPeople )
         $responder : Responder( boatCapacity >= $numberOfPeople && boatCapacity <= $numberOfPeople + 4 )
         $mission : MissionAssignment( incident == $incident, responder == $responder )
     then
         int currentScore = $mission.getCompatibilityScore();
-		$mission.setCompatibilityScore( currentScore + 25 );
+        $mission.setCompatibilityScore( currentScore + 25 );
 end
 
 rule "The difference between the boat capacity and the incident number of people is less than or equal to 2"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident( $numberOfPeople : numPeople )
         $responder : Responder( boatCapacity >= $numberOfPeople && boatCapacity <= $numberOfPeople + 2 )
         $mission : MissionAssignment( incident == $incident, responder == $responder )
     then
         int currentScore = $mission.getCompatibilityScore();
-		$mission.setCompatibilityScore( currentScore + 25 );
+        $mission.setCompatibilityScore( currentScore + 25 );
 end
 
 rule "The Responder can fit the EXACT number of people on their boat"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $incident : Incident( $numberOfPeople : numPeople )
         $responder : Responder( boatCapacity == $numberOfPeople )
         $mission : MissionAssignment( incident == $incident, responder == $responder )
     then
         int currentScore = $mission.getCompatibilityScore();
-		$mission.setCompatibilityScore( currentScore + 50 );
+        $mission.setCompatibilityScore( currentScore + 50 );
 end
 
 rule "Responder is 0 to 5km away from Incident"
-	when
-		$missionAssignment : MissionAssignment ( distance <= 5000 )
-	then
-		int currentScore = $missionAssignment.getCompatibilityScore();
-		$missionAssignment.setCompatibilityScore( currentScore + 100 );
+    ruleflow-group "IncidentResponderAssignment"
+    when
+        $missionAssignment : MissionAssignment ( distance <= 5000 )
+    then
+        int currentScore = $missionAssignment.getCompatibilityScore();
+        $missionAssignment.setCompatibilityScore( currentScore + 100 );
 end
 
 rule "Responder is 5km to 10km away from Incident"
-	when
-		$missionAssignment : MissionAssignment ( distance > 5000 && distance <= 10000 )
-	then
-		int currentScore = $missionAssignment.getCompatibilityScore();
-		$missionAssignment.setCompatibilityScore( currentScore + 75 );
+    ruleflow-group "IncidentResponderAssignment"
+    when
+    $missionAssignment : MissionAssignment ( distance > 5000 && distance <= 10000 )
+    then
+        int currentScore = $missionAssignment.getCompatibilityScore();
+    $missionAssignment.setCompatibilityScore( currentScore + 75 );
 end
 
 rule "Responder is 10km to 15km away from Incident"
-	when
-		$missionAssignment : MissionAssignment ( distance > 10000 && distance <= 15000 )
-	then
-		int currentScore = $missionAssignment.getCompatibilityScore();
-		$missionAssignment.setCompatibilityScore( currentScore + 50 );
+    ruleflow-group "IncidentResponderAssignment"
+    when
+        $missionAssignment : MissionAssignment ( distance > 10000 && distance <= 15000 )
+    then
+        int currentScore = $missionAssignment.getCompatibilityScore();
+        $missionAssignment.setCompatibilityScore( currentScore + 50 );
 end
 
 rule "Responder is more than 15km away from Incident"
-	when
-		$missionAssignment : MissionAssignment ( distance > 15000 )
-	then
-		int currentScore = $missionAssignment.getCompatibilityScore();
-		$missionAssignment.setCompatibilityScore( currentScore + 25 );
+    ruleflow-group "IncidentResponderAssignment"
+    when
+        $missionAssignment : MissionAssignment ( distance > 15000 )
+    then
+        int currentScore = $missionAssignment.getCompatibilityScore();
+        $missionAssignment.setCompatibilityScore( currentScore + 25 );
 end
 
 rule "Responder is a person"
+    ruleflow-group "IncidentResponderAssignment"
     when
         $responder : Responder( person == true )
         $missionAssignment : MissionAssignment( responder == $responder )
     then
-		int currentScore = $missionAssignment.getCompatibilityScore();
-		$missionAssignment.setCompatibilityScore( currentScore + 100 );
+        int currentScore = $missionAssignment.getCompatibilityScore();
+        $missionAssignment.setCompatibilityScore( currentScore + 100 );
 end
 
 rule "Collect the Mission Assignments for Processing"
-	salience -100
-	when
-		not PotentialMissionAssignments()
-		$allAssignments : List() from collect( MissionAssignment() )
-	then
-		insert( new PotentialMissionAssignments( $allAssignments ) );
+    ruleflow-group "IncidentResponderAssignment"
+    salience -100
+    when
+        not PotentialMissionAssignments()
+        $allAssignments : List() from collect( MissionAssignment() )
+    then
+        insert( new PotentialMissionAssignments( $allAssignments ) );
 end
 
 rule "Default Prioritization when no Command Override"
-	salience -100
-	when
-		$assignments : PotentialMissionAssignments( prioritized == false )
-	then
-		modify( $assignments ){
-			defaultPrioritization()
-		}
+    ruleflow-group "IncidentResponderAssignment"
+    salience -100
+    when
+        $assignments : PotentialMissionAssignments( prioritized == false )
+    then
+        modify( $assignments ){
+            defaultPrioritization()
+        }
 end
 
 rule "Assign the top mission"
-	when
-		$mission: Mission(status == Status.REQUESTED)
-		$assignments : PotentialMissionAssignments( prioritized == true )
-	then
-		$assignments.getAssignedMission($mission);
-		update ($mission)
+    ruleflow-group "IncidentResponderAssignment"
+    when
+        $mission: Mission(status == Status.REQUESTED)
+        $assignments : PotentialMissionAssignments( prioritized == true )
+    then
+        $assignments.getAssignedMission($mission);
+        update ($mission)
 end
